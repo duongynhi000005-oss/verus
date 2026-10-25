@@ -2521,7 +2521,7 @@ fn loop_to_stmts(
         au_branch_bool,
         pre_modified_params_incl,
         pre_modified_params_excl,
-        known_no_back_edge: _,
+        known_no_back_edge,
     } = &stm.x
     else {
         unreachable!()
@@ -2626,7 +2626,7 @@ fn loop_to_stmts(
     */
 
     let mut air_body: Vec<Stmt> = state.static_prelude.clone();
-    if !loop_isolation {
+    if !loop_isolation && !known_no_back_edge {
         air_body.push(Arc::new(StmtX::Snapshot(snapshot_ident(SNAPSHOT_LOOP))));
         modified_vars.emit_havocs(ctx, SNAPSHOT_LOOP, &mut air_body);
     }
@@ -2671,8 +2671,10 @@ fn loop_to_stmts(
             air_body.extend(assert_free_pre_stmts);
 
             // Havoc all vars that might be modified during the loop
-            air_body.push(Arc::new(StmtX::Snapshot(snapshot_ident(SNAPSHOT_BOUNDARY))));
-            modified_vars.emit_havocs(ctx, SNAPSHOT_BOUNDARY, &mut air_body);
+            if !known_no_back_edge {
+                air_body.push(Arc::new(StmtX::Snapshot(snapshot_ident(SNAPSHOT_BOUNDARY))));
+                modified_vars.emit_havocs(ctx, SNAPSHOT_BOUNDARY, &mut air_body);
+            }
         }
     }
 
