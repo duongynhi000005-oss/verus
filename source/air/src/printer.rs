@@ -676,13 +676,15 @@ pub(crate) fn node_to_string(node: &Node) -> String {
 pub fn clean_up_lines(input: String, indentation: &str) -> String {
     let lines: Vec<&str> = input.lines().collect();
     let mut result: String = "".to_string();
+    let indent_after_first =
+        indentation.chars().next().map_or("", |c| &indentation[c.len_utf8()..]);
     let mut i = 0;
     while i < lines.len() {
         let mut line = lines[i].to_owned();
         // Consolidate closing ) lines:
         if line.trim() == ")" {
             while i + 1 < lines.len() && lines[i + 1].trim() == ")" {
-                line = lines[i + 1].to_string() + &indentation[1..] + line.trim();
+                line = lines[i + 1].to_string() + indent_after_first + line.trim();
                 i += 1;
             }
         }
@@ -693,4 +695,17 @@ pub fn clean_up_lines(input: String, indentation: &str) -> String {
         }
     }
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::clean_up_lines;
+
+    #[test]
+    fn clean_up_lines_empty_and_multibyte_indentation() {
+        assert_eq!(clean_up_lines(")\n)".to_string(), ""), "))");
+        assert_eq!(clean_up_lines("  )\n )".to_string(), " "), " ))");
+        assert_eq!(clean_up_lines(")\n)".to_string(), "é"), "))");
+        assert_eq!(clean_up_lines(")\n)".to_string(), "é "), ") )");
+    }
 }
