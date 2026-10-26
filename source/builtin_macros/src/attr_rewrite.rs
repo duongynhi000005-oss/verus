@@ -504,6 +504,20 @@ fn prepare_items_for_verus_spec(span: proc_macro2::Span, i: &mut syn::Item) {
                 }
             }
         }
+        syn::Item::Trait(t) => {
+            for item in &mut t.items {
+                if let syn::TraitItem::Fn(syn::TraitItemFn { attrs, default, .. }) = item {
+                    if default.is_some() {
+                        add_verus_spec_if_needed(attrs, span);
+                    }
+                    attrs.push(crate::syntax::mk_rust_attr_syn(
+                        span,
+                        "allow",
+                        quote_spanned! { span => (unused, verus_trait_method_marker)},
+                    ));
+                }
+            }
+        }
         _ => {}
     }
 }
@@ -726,11 +740,28 @@ pub(crate) fn rewrite_verus_spec_on_fun_or_loop(
                 })
             };
 
-            // Check if the function has the impl method marker
-            let is_impl_fn = fun.attrs.iter().any(&is_hidden_impl_marker);
+            let is_hidden_trait_marker = |attr: &syn::Attribute| {
+                attr.path().get_ident().map_or(false, |ident| {
+                    ident == "allow"
+                        && matches!(&attr.meta, syn::Meta::List(meta_list)
+                        if meta_list.tokens.to_string().contains("verus_trait_method_marker"))
+                })
+            };
 
-            // Remove the marker attribute (internal use only)
-            fun.attrs.retain(|attr| !is_hidden_impl_marker(attr));
+            // Check if the function has the impl or trait method marker
+            let is_impl_fn = fun.attrs.iter().any(&is_hidden_impl_marker);
+            let is_trait_fn = fun.attrs.iter().any(&is_hidden_trait_marker);
+
+            // Remove the marker attributes (internal use only)
+            fun.attrs.retain(|attr| !is_hidden_impl_marker(attr) && !is_hidden_trait_marker(attr));
+
+            if is_trait_fn {
+                if let Some(with) = &spec_attr.spec.with {
+                    return proc_macro::TokenStream::from(
+                        quote_spanned!(with.with.span() => ::core::compile_error!("`with` does not support trait");),
+                    );
+                }
+            }
 
             let mut new_stream = TokenStream::new();
             let mut rustdoc_attrs: Vec<syn::Attribute> = vec![];

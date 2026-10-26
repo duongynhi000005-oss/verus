@@ -333,8 +333,11 @@ pub(crate) fn translate_trait<'tcx>(
         }
 
         let item_path = ctxt.def_id_to_vir_path(owner_id.to_def_id());
-        let is_verus_spec =
-            item_path.segments.last().expect("segment.last").starts_with(VERUS_SPEC);
+        let last_seg = item_path.segments.last().expect("segment.last");
+        if last_seg.starts_with("_VERUS_VERIFIED_") {
+            return err_span(*span, "`with` does not support trait");
+        }
+        let is_verus_spec = last_seg.starts_with(VERUS_SPEC);
         let attrs = tcx.hir_attrs(trait_item.hir_id());
         let ex_item_id_for = if let Some(ex_trait_id_for) = ex_trait_id_for {
             match kind {
