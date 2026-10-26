@@ -1050,17 +1050,25 @@ fn rewrite_verus_spec_on_expr_local(
 /// Wrap an expression with a `|=` follow clause, producing a tuple `(expr, follow)`.
 /// Used by both struct-constructor and function-call proof_with! handling.
 fn apply_follows(erase: &EraseGhost, expr: &mut Expr, follow_tokens: TokenStream) {
+    let is_valid = verus_syn::parse2::<verus_syn::Expr>(follow_tokens.clone())
+        .map_or(false, |follow_expr| is_tracked_ghost_expr(&follow_expr));
+    if !is_valid {
+        *expr = Expr::Verbatim(quote_spanned!(follow_tokens.span() =>
+            ::core::compile_error!("A follow expression in `with` must be a tracked/ghost expression wrapped in Tracked(...) or Ghost(...).")
+        ));
+        return;
+    }
     let follow: TokenStream =
         syntax::rewrite_expr(erase.clone(), false, follow_tokens.into()).into();
     *expr = Expr::Verbatim(quote_spanned!(expr.span() => (#expr, #follow)));
 }
 
 fn is_tracked_ghost_expr(expr: &verus_syn::Expr) -> bool {
-    // check expr is of the form Tracked(...) or Ghost(...)
+    // check expr is of the form Tracked(...) or Ghost(...) (including Tracked::assume_new() / Ghost::assume_new())
     if let verus_syn::Expr::Call(verus_syn::ExprCall { func, .. }) = expr {
         if let verus_syn::Expr::Path(path) = func.as_ref() {
-            if let Some(ident) = path.path.get_ident() {
-                return ident == "Tracked" || ident == "Ghost";
+            if let Some(first) = path.path.segments.first() {
+                return first.ident == "Tracked" || first.ident == "Ghost";
             }
         }
     }
@@ -1160,6 +1168,12 @@ fn rewrite_with_expr(
         syn::Expr::Call(syn::ExprCall { args, .. })
         | syn::Expr::MethodCall(syn::ExprMethodCall { args, .. }) => {
             for arg in inputs {
+                if !is_tracked_ghost_expr(&arg) {
+                    *expr = Expr::Verbatim(quote_spanned!(arg.span() =>
+                        ::core::compile_error!("A `with` input argument must be a tracked/ghost expression wrapped in Tracked(...) or Ghost(...).")
+                    ));
+                    return vec![];
+                }
                 let arg =
                     syntax::rewrite_expr(erase.clone(), false, arg.into_token_stream().into());
                 args.push(syn::Expr::Verbatim(arg.into()));
