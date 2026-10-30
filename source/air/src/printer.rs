@@ -681,8 +681,13 @@ pub fn clean_up_lines(input: String, indentation: &str) -> String {
         let mut line = lines[i].to_owned();
         // Consolidate closing ) lines:
         if line.trim() == ")" {
+            let indent_tail = if let Some(ch) = indentation.chars().next() {
+                &indentation[ch.len_utf8()..]
+            } else {
+                ""
+            };
             while i + 1 < lines.len() && lines[i + 1].trim() == ")" {
-                line = lines[i + 1].to_string() + &indentation[1..] + line.trim();
+                line = lines[i + 1].to_string() + indent_tail + line.trim();
                 i += 1;
             }
         }
