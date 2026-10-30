@@ -1051,7 +1051,7 @@ fn rewrite_verus_spec_on_expr_local(
 /// Used by both struct-constructor and function-call proof_with! handling.
 fn apply_follows(erase: &EraseGhost, expr: &mut Expr, follow_tokens: TokenStream) {
     let follow: TokenStream =
-        syntax::rewrite_expr(erase.clone(), false, follow_tokens.into()).into();
+        syntax::rewrite_expr(erase.clone(), true, follow_tokens.into()).into();
     *expr = Expr::Verbatim(quote_spanned!(expr.span() => (#expr, #follow)));
 }
 
@@ -1161,7 +1161,7 @@ fn rewrite_with_expr(
         | syn::Expr::MethodCall(syn::ExprMethodCall { args, .. }) => {
             for arg in inputs {
                 let arg =
-                    syntax::rewrite_expr(erase.clone(), false, arg.into_token_stream().into());
+                    syntax::rewrite_expr(erase.clone(), true, arg.into_token_stream().into());
                 args.push(syn::Expr::Verbatim(arg.into()));
             }
         }
